@@ -3,262 +3,250 @@ import pygame
 import time
 import random
 
-velCobra = 30
+# --- Configurações Gerais ---
+LARGURA_TELA = 800
+ALTURA_TELA = 600
+TAMANHO_BLOCO = 10
+VELOCIDADE_INICIAL = 15
 
-# Tamanho da janela
-largura = 1280
-altura = 1080
+# --- Cores ---
+PRETO = pygame.Color(0, 0, 0)
+BRANCO = pygame.Color(255, 255, 255)
+VERMELHO = pygame.Color(255, 0, 0)
+VERDE = pygame.Color(0, 255, 0)
+AZUL = pygame.Color(0, 0, 255)
 
-# Definindo as cores
-preto = pygame.Color(0, 0, 0)
-branco = pygame.Color(255, 255, 255)
-vermelho = pygame.Color(255, 0, 0)
-verde = pygame.Color(0, 255, 0)
-azul = pygame.Color(0, 0, 255)
+class Cobra:
+    """
+    Classe para representar uma cobra, suas propriedades e ações.
+    """
+    def __init__(self, cor, pos_inicial, teclas_controle):
+        self.cor = cor
+        self.posicao = list(pos_inicial)
+        self.corpo = [list(pos_inicial), 
+                      [pos_inicial[0] - TAMANHO_BLOCO, pos_inicial[1]],
+                      [pos_inicial[0] - (2 * TAMANHO_BLOCO), pos_inicial[1]]]
+        self.direcao = 'RIGHT'
+        self.muda_para = self.direcao
+        self.pontos = 0
+        self.teclas = teclas_controle
 
-# Inicializando o pygame
-pygame.init()
+    def mover(self):
+        # Validação para não permitir que a cobra se mova na direção oposta instantaneamente
+        if self.muda_para == 'UP' and self.direcao != 'DOWN':
+            self.direcao = 'UP'
+        if self.muda_para == 'DOWN' and self.direcao != 'UP':
+            self.direcao = 'DOWN'
+        if self.muda_para == 'LEFT' and self.direcao != 'RIGHT':
+            self.direcao = 'LEFT'
+        if self.muda_para == 'RIGHT' and self.direcao != 'LEFT':
+            self.direcao = 'RIGHT'
 
-# Inicializando a janela do jogo
-pygame.display.set_caption('Snake Mult')
-tela = pygame.display.set_mode((largura, altura))
+        # Atualiza a posição da cabeça da cobra
+        if self.direcao == 'UP':
+            self.posicao[1] -= TAMANHO_BLOCO
+        if self.direcao == 'DOWN':
+            self.posicao[1] += TAMANHO_BLOCO
+        if self.direcao == 'LEFT':
+            self.posicao[0] -= TAMANHO_BLOCO
+        if self.direcao == 'RIGHT':
+            self.posicao[0] += TAMANHO_BLOCO
 
-# Controlador de FPS (Frames Per Second)
-fps = pygame.time.Clock()
+    def crescer(self):
+        self.corpo.insert(0, list(self.posicao))
+        self.pontos += 10
 
-# Definindo as posições padrões das cobras
-cobraPos = [100, 50] # [x, y]
-cobraPos2 = [100, 150]
+    def encolher(self):
+        self.corpo.insert(0, list(self.posicao))
+        self.corpo.pop()
 
-# Definindo os primeiros 4 blocos das cobras
-# Corpo 1
-corpoCobra = [
-    [150, 100], # Posição [x, y] do 1° Bloco que compõe a primeira cobra
-    [140, 100], # Posição [x, y] do 2° Bloco que compõe a primeira cobra
-    [130, 100], # Posição [x, y] do 3° Bloco que compõe a primeira cobra
-    [120, 100]  # Posição [x, y] do 4° Bloco que compõe a primeira cobra
-]
+    def desenhar(self, tela):
+        for pos in self.corpo:
+            pygame.draw.rect(tela, self.cor, pygame.Rect(pos[0], pos[1], TAMANHO_BLOCO, TAMANHO_BLOCO))
 
-# Corpo 2
-corpoCobra2 = [
-    [150, 150], # Posição [x, y] do 1° Bloco que compõe a segunda cobra
-    [140, 150], # Posição [x, y] do 2° Bloco que compõe a segunda cobra
-    [130, 150], # Posição [x, y] do 3° Bloco que compõe a segunda cobra
-    [120, 150]  # Posição [x, y] do 4° Bloco que compõe a segunda cobra
-]
-
-# Posição da fruta
-frutaPos = [random.randrange(1, (largura // 10)) * 10,
-            random.randrange(1, (altura // 10)) * 10]
-frutaNasc = True
-
-# Configurações padrões da direção da cobra
-direcao = 'RIGHT'
-mudaPara = direcao
-
-direcao2 = 'RIGHT'
-mudaPara2 = direcao2
-
-# Inicializando a pontuação
-pontos1 = 0
-pontos2 = 0
-
-def desenhaCobra(corpoCobra, cor):
-    for pos in corpoCobra:
-        pygame.draw.rect(tela, cor, pygame.Rect(pos[0], pos[1], 10, 10))
+    def verificar_colisao_propria(self):
+        # A cabeça colidiu com qualquer parte do corpo?
+        for bloco in self.corpo[1:]:
+            if self.posicao == bloco:
+                return True
+        return False
         
-    for pos in corpoCobra2:
-        pygame.draw.rect(tela, cor, pygame.Rect(pos[0], pos[1], 10, 10))
+    def verificar_colisao_parede(self):
+        if self.posicao[0] < 0 or self.posicao[0] > LARGURA_TELA - TAMANHO_BLOCO:
+            return True
+        if self.posicao[1] < 0 or self.posicao[1] > ALTURA_TELA - TAMANHO_BLOCO:
+            return True
+        return False
 
 
-# Funcionamento dos pontos
-def mostraPontos(pontos, escolha, cor, font, tam):
-    
-    # Criando a font do objeto fontPontos
-    fontPontos = pygame.font.SysFont(font, tam)
-    
-    # Criando o display da interface do objeto
-    # interfacePontos
-    interfacePontos = fontPontos.render('Pontos: ' + str(pontos), True, cor)
+class Jogo:
+    """
+    Classe principal que gerencia o estado e o loop do jogo.
+    """
+    def __init__(self):
+        pygame.init()
+        pygame.display.set_caption('Snake Multiplayer Melhorado')
+        self.tela = pygame.display.set_mode((LARGURA_TELA, ALTURA_TELA))
+        self.fps = pygame.time.Clock()
+        self.fonte_placar = pygame.font.SysFont('consolas', 20)
+        self.fonte_fim_jogo = pygame.font.SysFont('consolas', 50)
+        self.iniciar_jogo()
 
-    # Criando um objeto retangular para o objeto de
-    # superfície de texto
-    pontosRet = interfacePontos.get_rect()
-
-    # Exibindo o texto
-    tela.blit(interfacePontos, pontosRet)
-
-# Função de fim de jogo
-def fim():
-    
-    # Criando o objeto fonte minhaFont
-    minhaFont = pygame.font.SysFont('times new roman', 50)
-    
-    # Criando uma superfície de texto na qual o texto
-    # vai ser escrito
-    fimInterface1 = minhaFont.render('Sua pontuação: ' + str(pontos1), True, verde)
-    fimInterface2 = minhaFont.render('Sua pontuação: ' + str(pontos2), True, azul)
-
-    # Criando um objeto retangular para o texto de
-    # interface de objeto
-    fimRet1 = fimInterface1.get_rect()
-    fimRet2 = fimInterface2.get_rect()
-
-    # Configurando a posição do texto
-    fimRet1.midtop = (largura / 2, altura / 4)
-    fimRet2.midbottom = (largura / 2, altura / 4)
-
-    # Desenha o texto na tela
-    tela.blit(fimInterface1, fimRet1)
-    tela.blit(fimInterface2, fimRet2)
-    pygame.display.flip()
-
-    # Após 2 segundos nós saimos do programa
-    time.sleep(2)
-
-    # Desativando a biblioteca pygame
-    pygame.quit()
-
-    # Sai do programa
-    quit()
-    
-# Função Principal (main)
-while True:
-    
-    # Lidando com eventos chave
-    for event in pygame.event.get():
+    def iniciar_jogo(self):
+        # Define as teclas de controle para cada jogador
+        teclas_p1 = {'UP': pygame.K_w, 'DOWN': pygame.K_s, 'LEFT': pygame.K_a, 'RIGHT': pygame.K_d}
+        teclas_p2 = {'UP': pygame.K_UP, 'DOWN': pygame.K_DOWN, 'LEFT': pygame.K_LEFT, 'RIGHT': pygame.K_RIGHT}
         
-        # Imprime no console todos os eventos
-        # print(event)
+        self.cobra1 = Cobra(VERDE, [100, 50], teclas_p1)
+        self.cobra2 = Cobra(AZUL, [100, 550], teclas_p2)
         
-        # Teclas da cobra 1
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_w:
-                mudaPara = 'UP'
-            if event.key == pygame.K_s:
-                mudaPara = 'DOWN'
-            if event.key == pygame.K_a:
-                mudaPara = 'LEFT'
-            if event.key == pygame.K_d:
-                mudaPara = 'RIGHT'
+        self.fruta_pos = self.gerar_fruta()
+        self.fruta_nasc = True
+        
+        self.game_over = False
+        self.vencedor = None
+        
+        self.velocidade_cobra = VELOCIDADE_INICIAL
+
+    def gerar_fruta(self):
+        return [random.randrange(1, (LARGURA_TELA // TAMANHO_BLOCO)) * TAMANHO_BLOCO,
+                random.randrange(1, (ALTURA_TELA // TAMANHO_BLOCO)) * TAMANHO_BLOCO]
+
+    def mostrar_placar(self):
+        placar1_superficie = self.fonte_placar.render(f'Verde: {self.cobra1.pontos}', True, BRANCO)
+        placar2_superficie = self.fonte_placar.render(f'Azul: {self.cobra2.pontos}', True, BRANCO)
+        
+        placar1_ret = placar1_superficie.get_rect(topleft=(20, 10))
+        placar2_ret = placar2_superficie.get_rect(topright=(LARGURA_TELA - 20, 10))
+        
+        self.tela.blit(placar1_superficie, placar1_ret)
+        self.tela.blit(placar2_superficie, placar2_ret)
+
+    def tela_fim_de_jogo(self):
+        self.tela.fill(PRETO)
+        
+        # Define a mensagem do vencedor
+        if self.vencedor == 'Empate':
+            msg_vencedor = 'Empate!'
+        else:
+            msg_vencedor = f'O jogador {self.vencedor} venceu!'
             
-        # Teclas da cobra 2
-            if event.key == pygame.K_UP:
-                mudaPara2 = 'UP'
-            if event.key == pygame.K_DOWN:
-                mudaPara2 = 'DOWN'
-            if event.key == pygame.K_LEFT:
-                mudaPara2 = 'LEFT'
-            if event.key == pygame.K_RIGHT:
-                mudaPara2 = 'RIGHT'
-                
-    # Se duas teclas forem pressionadas simultaneamente ela não consegue ir para duas direções ao mesmo tempo
-    # Cobra 1
-    if mudaPara == 'UP' and direcao != 'DOWN':
-        direcao = 'UP'
-    if mudaPara == 'DOWN' and direcao != 'UP':
-        direcao = 'DOWN'
-    if mudaPara == 'LEFT' and direcao != 'RIGHT':
-        direcao = 'LEFT'
-    if mudaPara == 'RIGHT' and direcao != 'LEFT':
-        direcao = 'RIGHT'
+        texto_fim = self.fonte_fim_jogo.render('FIM DE JOGO', True, VERMELHO)
+        texto_vencedor = self.fonte_placar.render(msg_vencedor, True, BRANCO)
+        texto_restart = self.fonte_placar.render('Pressione R para reiniciar ou Q para sair.', True, BRANCO)
         
-    # Cobra 2
-    if mudaPara2 == 'UP' and direcao2 != 'DOWN':
-        direcao2 = 'UP'
-    if mudaPara2 == 'DOWN' and direcao2 != 'UP':
-        direcao2 = 'DOWN'
-    if mudaPara2 == 'LEFT' and direcao2 != 'RIGHT':
-        direcao2 = 'LEFT'
-    if mudaPara2 == 'RIGHT' and direcao2 != 'LEFT':
-        direcao2 = 'RIGHT'
-    
-    # Movendo a cobra
-    if direcao == 'UP':
-        cobraPos[1] -= 10
-    if direcao == 'DOWN':
-        cobraPos[1] += 10
-    if direcao == 'LEFT':
-        cobraPos[0] -= 10
-    if direcao == 'RIGHT':
-        cobraPos[0] += 10
+        # Posiciona os textos na tela
+        texto_fim_ret = texto_fim.get_rect(center=(LARGURA_TELA / 2, ALTURA_TELA / 2 - 50))
+        texto_vencedor_ret = texto_vencedor.get_rect(center=(LARGURA_TELA / 2, ALTURA_TELA / 2))
+        texto_restart_ret = texto_restart.get_rect(center=(LARGURA_TELA / 2, ALTURA_TELA / 2 + 50))
         
-    # Movendo a cobra 2
-    if direcao2 == 'UP':
-        cobraPos2[1] -= 10
-    if direcao2 == 'DOWN':
-        cobraPos2[1] += 10
-    if direcao2 == 'LEFT':
-        cobraPos2[0] -= 10
-    if direcao2 == 'RIGHT':
-        cobraPos2[0] += 10
+        self.tela.blit(texto_fim, texto_fim_ret)
+        self.tela.blit(texto_vencedor, texto_vencedor_ret)
+        self.tela.blit(texto_restart, texto_restart_ret)
+        pygame.display.flip()
 
-    
-    # Mecânica de crescimento da cobra
-    # Se a cobra e a fruta colidirem a pontuação
-    # vai ser incrementada em 10
-    corpoCobra.insert(0, list(cobraPos))
-    corpoCobra2.insert(0, list(cobraPos2))
-    
-    if cobraPos[0] == frutaPos[0] and cobraPos[1] == frutaPos[1]:
-        pontos1 += 10
-        frutaNasc = False
-    else:
-        corpoCobra.pop()
-        
-    if cobraPos2[0] == frutaPos[0] and cobraPos2[1] == frutaPos[1]:
-        pontos2 += 10
-        frutaNasc = False
-    else:
-        corpoCobra2.pop()
-        
-    if not frutaNasc:
-        frutaPos = [random.randrange(1, (largura // 10)) * 10,
-        random.randrange(1, (altura // 10)) * 10]
-        
-    frutaNasc = True
-    tela.fill(preto)
-    
-    desenhaCobra(corpoCobra, verde)
-    desenhaCobra(corpoCobra2, azul)
-        
-    pygame.draw.rect(tela, branco, pygame.Rect(
-    frutaPos[0], frutaPos[1], 10, 10))
-    
-    # Condições de fim de jogo
-    if cobraPos[0] < 0 or cobraPos[0] > largura - 10:
-        fim()
-    if cobraPos[1] < 0 or cobraPos[1] > altura - 10:
-        fim()
+    def rodar(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+                if event.type == pygame.KEYDOWN:
+                    if self.game_over:
+                        if event.key == pygame.K_r:
+                            self.iniciar_jogo()
+                        if event.key == pygame.K_q:
+                            pygame.quit()
+                            quit()
+                    else:
+                        # Controla a direção da cobra 1
+                        for direcao, tecla in self.cobra1.teclas.items():
+                            if event.key == tecla:
+                                self.cobra1.muda_para = direcao
+                        # Controla a direção da cobra 2
+                        for direcao, tecla in self.cobra2.teclas.items():
+                            if event.key == tecla:
+                                self.cobra2.muda_para = direcao
 
-    if cobraPos2[0] < 0 or cobraPos2[0] > largura - 10:
-        fim()
-    if cobraPos2[1] < 0 or cobraPos2[1] > altura - 10:
-        fim()
-    
-    # Tocando o corpo da cobra
-    # Cobra 1
-    for block in corpoCobra[1:]:
-        if cobraPos[0] == block[0] and cobraPos[1] == block[1]:
-            fim()
-
-    # Cobra 2
-    for block in corpoCobra2[1:]:
-        if cobraPos2[0] == block[0] and cobraPos2[1] == block[1]:
-            fim()
+            if not self.game_over:
+                self.logica_do_jogo()
+            else:
+                self.tela_fim_de_jogo()
             
-    # Tocando o corpo da outra cobra
-    for block1 in corpoCobra:
-        for block2 in corpoCobra2:
-            if block1[0] == block2[0] and block1[1] == block2[1]:
-                fim()
+            self.fps.tick(self.velocidade_cobra)
+
+    def logica_do_jogo(self):
+        # Movimentação
+        self.cobra1.mover()
+        self.cobra2.mover()
+
+        # Crescimento ao comer a fruta
+        if self.cobra1.posicao == self.fruta_pos:
+            self.cobra1.crescer()
+            self.fruta_nasc = False
+        else:
+            self.cobra1.encolher()
+
+        if self.cobra2.posicao == self.fruta_pos:
+            self.cobra2.crescer()
+            self.fruta_nasc = False
+        else:
+            self.cobra2.encolher()
         
-    # Mostrando a pontuação continuamente
-    mostraPontos(pontos1, 1, branco, 'times new roman', 20)
-    mostraPontos(pontos2, 2, azul, 'times new roman', 20)
+        # Gerar nova fruta se a anterior foi comida
+        if not self.fruta_nasc:
+            self.fruta_pos = self.gerar_fruta()
+        self.fruta_nasc = True
+        
+        # Aumentar velocidade com base na pontuação total
+        self.velocidade_cobra = VELOCIDADE_INICIAL + (self.cobra1.pontos + self.cobra2.pontos) // 20
+
+        # Desenhar elementos na tela
+        self.tela.fill(PRETO)
+        self.cobra1.desenhar(self.tela)
+        self.cobra2.desenhar(self.tela)
+        pygame.draw.rect(self.tela, BRANCO, pygame.Rect(self.fruta_pos[0], self.fruta_pos[1], TAMANHO_BLOCO, TAMANHO_BLOCO))
+        
+        # Verificação de Colisões e Fim de Jogo
+        # 1. Colisão com a parede
+        if self.cobra1.verificar_colisao_parede():
+            self.game_over = True
+            self.vencedor = 'Azul'
+        if self.cobra2.verificar_colisao_parede():
+            self.game_over = True
+            self.vencedor = 'Verde'
+
+        # 2. Colisão com o próprio corpo
+        if self.cobra1.verificar_colisao_propria():
+            self.game_over = True
+            self.vencedor = 'Azul'
+        if self.cobra2.verificar_colisao_propria():
+            self.game_over = True
+            self.vencedor = 'Verde'
+            
+        # 3. Colisão entre as cobras
+        for bloco in self.cobra2.corpo:
+            if self.cobra1.posicao == bloco:
+                self.game_over = True
+                self.definir_vencedor_colisao()
+        for bloco in self.cobra1.corpo:
+            if self.cobra2.posicao == bloco:
+                self.game_over = True
+                self.definir_vencedor_colisao()
+
+        # Atualização do display
+        self.mostrar_placar()
+        pygame.display.update()
+
+    def definir_vencedor_colisao(self):
+        if self.cobra1.pontos > self.cobra2.pontos:
+            self.vencedor = 'Verde'
+        elif self.cobra2.pontos > self.cobra1.pontos:
+            self.vencedor = 'Azul'
+        else:
+            self.vencedor = 'Empate'
+
+if __name__ == '__main__':
+    jogo = Jogo()
+    jogo.rodar()
     
-    # Recarrega a tela do jogo
-    pygame.display.update()
-    
-    # Frame Per Second
-    fps.tick(velCobra)
